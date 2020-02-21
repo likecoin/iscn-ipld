@@ -13,6 +13,12 @@ import (
 
 // Block (iscn-block, codec 0x0264), represents an ISCN block header
 type Block struct {
+	Version int    `json:"version"`
+	ID      string `json:"id"`
+	Owner   string `json:"owner"`
+	Edition int    `json:"edition"`
+	Hash    string `json:"hash"`
+
 	cid     *cid.Cid
 	rawdata []byte
 }
@@ -103,12 +109,12 @@ func (*Block) Stat() (*node.NodeStat, error) {
 func BlockDecoder(block goblocks.Block) (node.Node, error) {
 	log.Println("iscn-BlockDecoder")
 
-	cid := block.Cid()
-	b := Block{
-		cid:     &cid,
-		rawdata: block.RawData(),
+	n, err := cbor.DecodeBlock(block)
+	if err != nil {
+		log.Printf("Cannot not decode block: %s", err)
+		return nil, err
 	}
-	return &b, nil
+	return n, nil
 }
 
 // Package function
@@ -120,6 +126,8 @@ func NewISCNBlock(m map[string]interface{}) (*Block, error) {
 		log.Printf("Fail to marshal object: %s", err)
 		return nil, err
 	}
+
+	//TODO: validation code go here
 
 	c, err := cid.Prefix{
 		Codec:    iscnblocks.CodecISCN,
