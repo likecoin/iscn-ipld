@@ -1,6 +1,6 @@
 # iscn-ipld
 
-This repository is a go-ipfs IPLD plugin for International Standard Content Number (ISCN).
+This repository is a go-ipfs IPLD plugin for [International Standard Content Number (ISCN)](https://github.com/likecoin/iscn-specs).
 
 ## Building and Installing
 You can build the  plugin by running `make build`. You can then install it into your local IPFS repo by running `make install`.
