@@ -1,4 +1,4 @@
-# likecoin-iscn-ipld
+# iscn-ipld
 
 This repository is a go-ipfs IPLD plugin for International Standard Content Number (ISCN).
 

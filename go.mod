@@ -1,4 +1,4 @@
-module github.com/likecoin/likecoin-iscn-ipld
+module github.com/likecoin/iscn-ipld
 
 go 1.13
 

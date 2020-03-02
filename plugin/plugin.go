@@ -5,8 +5,8 @@ import (
 
 	"github.com/ipfs/go-ipfs/core/coredag"
 	"github.com/ipfs/go-ipfs/plugin"
-	"github.com/likecoin/likecoin-iscn-ipld/plugin/block"
-	"github.com/likecoin/likecoin-iscn-ipld/plugin/block/iscn"
+	"github.com/likecoin/iscn-ipld/plugin/block"
+	"github.com/likecoin/iscn-ipld/plugin/block/iscn"
 
 	ipld "github.com/ipfs/go-ipld-format"
 )

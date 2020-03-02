@@ -7,7 +7,7 @@ import (
 	cid "github.com/ipfs/go-cid"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	node "github.com/ipfs/go-ipld-format"
-	iscnblocks "github.com/likecoin/likecoin-iscn-ipld/plugin/block"
+	iscnblocks "github.com/likecoin/iscn-ipld/plugin/block"
 	mh "github.com/multiformats/go-multihash"
 )
 
@@ -121,13 +121,13 @@ func BlockDecoder(block goblocks.Block) (node.Node, error) {
 
 // NewISCNBlock creates a iscn-block IPLD object
 func NewISCNBlock(m map[string]interface{}) (*Block, error) {
+	//TODO: validation code go here
+
 	rawdata, err := cbor.DumpObject(m)
 	if err != nil {
 		log.Printf("Fail to marshal object: %s", err)
 		return nil, err
 	}
-
-	//TODO: validation code go here
 
 	c, err := cid.Prefix{
 		Codec:    iscnblocks.CodecISCN,
