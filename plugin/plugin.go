@@ -35,7 +35,7 @@ func (*Plugin) Version() string {
 }
 
 // Init Plugin
-func (*Plugin) Init() error {
+func (*Plugin) Init(*plugin.Environment) error {
 	log.Println("ipldiscn-Init")
 	return nil
 }
