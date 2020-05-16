@@ -3,6 +3,8 @@ package kernel
 import (
 	"fmt"
 
+	"github.com/ipfs/go-cid"
+
 	blocks "github.com/ipfs/go-block-format"
 	node "github.com/ipfs/go-ipld-format"
 	iscn "github.com/likecoin/iscn-ipld/plugin/block"
@@ -28,24 +30,28 @@ const (
 // 	rawdata []byte
 // }
 
-type factoryFunc []func() (iscn.IscnObject, error)
-
-var factory factoryFunc = factoryFunc{
-	newSchemaV1,
+// Register registers the schema of ISCN kernel block
+func Register() {
+	iscn.RegisterIscnObjectFactory(
+		SchemaName,
+		[]iscn.CodecFactoryFunc{
+			newSchemaV1,
+		},
+	)
 }
 
 // ==================================================
 // base
 // ==================================================
 
-// base is the base struct for ISCN kernel (iscn-kernel, codec 0x0264)
+// base is the base struct for ISCN kernel (codec 0x0264)
 type base struct {
 	*iscn.Base
 
-	id string
+	id *ID
 }
 
-func newBase(version uint64, schema []iscn.Data) (*base, error) {
+func newBase(version uint64, schema []iscn.Data, id *ID) (*base, error) {
 	blockBase, err := iscn.NewBase(
 		iscn.CodecISCN,
 		SchemaName,
@@ -58,6 +64,7 @@ func newBase(version uint64, schema []iscn.Data) (*base, error) {
 
 	return &base{
 		Base: blockBase,
+		id:   id,
 	}, nil
 }
 
@@ -66,13 +73,13 @@ func newBase(version uint64, schema []iscn.Data) (*base, error) {
 // Loggable returns a map the type of IPLD Link
 func (b *base) Loggable() map[string]interface{} {
 	l := b.Base.Loggable()
-	l["id"] = b.id
+	l["id"] = b.id.GetID()
 	return l
 }
 
 // String is a helper for output
 func (b *base) String() string {
-	return fmt.Sprintf("<%s (v%d): %s>", b.GetName(), b.GetVersion(), b.id)
+	return fmt.Sprintf("<%s (v%d): %s>", b.GetName(), b.GetVersion(), b.id.GetID())
 }
 
 // ==================================================
@@ -86,12 +93,18 @@ type schemaV1 struct {
 
 var _ iscn.IscnObject = (*schemaV1)(nil)
 
-func newSchemaV1() (iscn.IscnObject, error) {
+func newSchemaV1() (iscn.Codec, error) {
+	id := NewID()
+	version := iscn.NewNumber("version", true, iscn.Uint64T)
 	schema := []iscn.Data{
-		NewID(),
+		id,
+		iscn.NewTimestamp("timestamp", true),
+		version,
+		iscn.NewParent("parent", iscn.CodecISCN, version),
+		iscn.NewCid("content", true, iscn.CodecContent),
 	}
 
-	iscnKernelBase, err := newBase(1, schema)
+	iscnKernelBase, err := newBase(1, schema, id)
 	if err != nil {
 		return nil, err
 	}
@@ -105,49 +118,17 @@ func newSchemaV1() (iscn.IscnObject, error) {
 
 // BlockDecoder takes care of the ISCN kernel IPLD objects
 func BlockDecoder(block blocks.Block) (node.Node, error) {
-	version, data, err := iscn.DecodeData(block)
-	if err != nil {
-		return nil, err
-	}
-
-	if version > (uint64)(len(factory)) {
-		return nil, fmt.Errorf("<%s (v%d)> is not implemented", SchemaName, version)
-	}
-	version--
-
-	obj, err := factory[version]()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := obj.Decode(data); err != nil {
-		return nil, err
-	}
-
-	return obj, nil
+	return iscn.Decode(SchemaName, block.RawData(), block.Cid())
 }
 
 // Package function
 
+// DecodeData decodes the raw bytes to ISCN kernel IPLD objects
+func DecodeData(rawData []byte, c cid.Cid) (node.Node, error) {
+	return iscn.Decode(SchemaName, rawData, c)
+}
+
 // NewIscnKernelBlock creates an ISCN kernel IPLD object
 func NewIscnKernelBlock(version uint64, data map[string]interface{}) (iscn.IscnObject, error) {
-	if version > (uint64)(len(factory)) {
-		return nil, fmt.Errorf("<%s (v%d)> is not implemented", SchemaName, version)
-	}
-	version--
-
-	obj, err := factory[version]()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := obj.SetData(data); err != nil {
-		return nil, err
-	}
-
-	if err := obj.Encode(); err != nil {
-		return nil, err
-	}
-
-	return obj, nil
+	return iscn.Encode(SchemaName, version, data)
 }
