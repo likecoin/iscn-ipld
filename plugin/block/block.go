@@ -53,28 +53,30 @@ type Codec interface {
 // CodecFactoryFunc returns a factory function to create ISCN object
 type CodecFactoryFunc func() (Codec, error)
 
-type codecFactory map[string][]CodecFactoryFunc
+type codecFactory map[uint64][]CodecFactoryFunc
 
 var factory codecFactory = codecFactory{}
+var schemaNames map[uint64]string = map[uint64]string{}
 
 // RegisterIscnObjectFactory registers an array of ISCN object factory functions
-func RegisterIscnObjectFactory(schemaName string, factories []CodecFactoryFunc) {
-	factory[schemaName] = factories
+func RegisterIscnObjectFactory(codec uint64, schemaName string, factories []CodecFactoryFunc) {
+	factory[codec] = factories
+	schemaNames[codec] = schemaName
 }
 
 // Encode the data to specific ISCN object and version
 func Encode(
-	schemaName string,
+	codec uint64,
 	version uint64,
 	data map[string]interface{},
 ) (IscnObject, error) {
-	schemas, ok := factory[schemaName]
+	schemas, ok := factory[codec]
 	if !ok {
-		return nil, fmt.Errorf("\"%s\" is not registered", schemaName)
+		return nil, fmt.Errorf("\"%s\" is not registered", schemaNames[codec])
 	}
 
 	if version > (uint64)(len(schemas)) {
-		return nil, fmt.Errorf("<%s (v%d)> is not implemented", schemaName, version)
+		return nil, fmt.Errorf("<%s (v%d)> is not implemented", schemaNames[codec], version)
 	}
 	version--
 
@@ -96,7 +98,7 @@ func Encode(
 
 // Decode decodes the raw IPLD data back to data object and
 // the CID is used for verify whether the object is consist
-func Decode(schemaName string, rawData []byte, c cid.Cid) (node.Node, error) {
+func Decode(rawData []byte, c cid.Cid) (node.Node, error) {
 	data := map[string]interface{}{}
 	if err := cbor.DecodeInto(rawData, &data); err != nil {
 		return nil, err
@@ -112,13 +114,13 @@ func Decode(schemaName string, rawData []byte, c cid.Cid) (node.Node, error) {
 		return nil, fmt.Errorf("Context: 'uint64' is expected but '%T' is found", v)
 	}
 
-	schemas, ok := factory[schemaName]
+	schemas, ok := factory[c.Type()]
 	if !ok {
-		return nil, fmt.Errorf("\"%s\" is not registered", schemaName)
+		return nil, fmt.Errorf("\"%s\" is not registered", schemaNames[c.Type()])
 	}
 
 	if version > (uint64)(len(schemas)) {
-		return nil, fmt.Errorf("<%s (v%d)> is not implemented", schemaName, version)
+		return nil, fmt.Errorf("<%s (v%d)> is not implemented", schemaNames[c.Type()], version)
 	}
 	version--
 

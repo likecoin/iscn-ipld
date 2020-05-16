@@ -16,6 +16,7 @@ const (
 // Register registers the schema of content block
 func Register() {
 	iscn.RegisterIscnObjectFactory(
+		iscn.CodecContent,
 		SchemaName,
 		[]iscn.CodecFactoryFunc{
 			newSchemaV1,
@@ -87,17 +88,17 @@ func newSchemaV1() (iscn.Codec, error) {
 
 // BlockDecoder takes care of the content IPLD objects
 func BlockDecoder(block blocks.Block) (node.Node, error) {
-	return iscn.Decode(SchemaName, block.RawData(), block.Cid())
+	return iscn.Decode(block.RawData(), block.Cid())
 }
 
 // Package function
 
 // DecodeData decodes the raw bytes to content IPLD objects
 func DecodeData(rawData []byte, c cid.Cid) (node.Node, error) {
-	return iscn.Decode(SchemaName, rawData, c)
+	return iscn.Decode(rawData, c)
 }
 
 // NewContentBlock creates an content IPLD object
 func NewContentBlock(version uint64, data map[string]interface{}) (iscn.IscnObject, error) {
-	return iscn.Encode(SchemaName, version, data)
+	return iscn.Encode(iscn.CodecContent, version, data)
 }
