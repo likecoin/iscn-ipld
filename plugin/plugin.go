@@ -6,7 +6,7 @@ import (
 	"github.com/ipfs/go-ipfs/core/coredag"
 	"github.com/ipfs/go-ipfs/plugin"
 	"github.com/likecoin/iscn-ipld/plugin/block"
-	"github.com/likecoin/iscn-ipld/plugin/block/iscn"
+	"github.com/likecoin/iscn-ipld/plugin/block/kernel"
 
 	ipld "github.com/ipfs/go-ipld-format"
 )
@@ -15,6 +15,10 @@ import (
 var Plugins = []plugin.Plugin{
 	&Plugin{},
 }
+
+// ==================================================
+// Plugin
+// ==================================================
 
 // Plugin is the main structure.
 type Plugin struct{}
@@ -31,7 +35,7 @@ func (*Plugin) Name() string {
 // Version returns the version of Plugin
 func (*Plugin) Version() string {
 	log.Println("ipldiscn-Version")
-	return "0.4.23.0.1"
+	return "0.5.0.0.0"
 }
 
 // Init Plugin
@@ -43,7 +47,7 @@ func (*Plugin) Init(*plugin.Environment) error {
 // RegisterBlockDecoders registers the decoder for different types of block
 func (*Plugin) RegisterBlockDecoders(decoder ipld.BlockDecoder) error {
 	log.Println("ipldiscn-RegisterBlockDecoders")
-	decoder.Register(block.CodecISCN, iscn.BlockDecoder)
+	decoder.Register(block.CodecISCN, kernel.BlockDecoder)
 	return nil
 }
 
