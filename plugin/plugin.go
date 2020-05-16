@@ -7,6 +7,7 @@ import (
 	"github.com/ipfs/go-ipfs/plugin"
 	"github.com/likecoin/iscn-ipld/plugin/block"
 	"github.com/likecoin/iscn-ipld/plugin/block/content"
+	"github.com/likecoin/iscn-ipld/plugin/block/entity"
 	"github.com/likecoin/iscn-ipld/plugin/block/kernel"
 
 	ipld "github.com/ipfs/go-ipld-format"
@@ -42,6 +43,7 @@ func (*Plugin) Init(*plugin.Environment) error {
 	fmt.Println("ISCN IPLD plugin loaded")
 	kernel.Register()
 	content.Register()
+	entity.Register()
 	return nil
 }
 
@@ -49,6 +51,7 @@ func (*Plugin) Init(*plugin.Environment) error {
 func (*Plugin) RegisterBlockDecoders(decoder ipld.BlockDecoder) error {
 	decoder.Register(block.CodecISCN, kernel.BlockDecoder)
 	decoder.Register(block.CodecContent, content.BlockDecoder)
+	decoder.Register(block.CodecEntity, entity.BlockDecoder)
 	return nil
 }
 
