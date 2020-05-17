@@ -9,6 +9,8 @@ import (
 	"github.com/likecoin/iscn-ipld/plugin/block/content"
 	"github.com/likecoin/iscn-ipld/plugin/block/entity"
 	"github.com/likecoin/iscn-ipld/plugin/block/kernel"
+	"github.com/likecoin/iscn-ipld/plugin/block/stakeholder"
+	"github.com/likecoin/iscn-ipld/plugin/block/stakeholders"
 
 	ipld "github.com/ipfs/go-ipld-format"
 )
@@ -42,16 +44,20 @@ func (*Plugin) Version() string {
 func (*Plugin) Init(*plugin.Environment) error {
 	fmt.Println("ISCN IPLD plugin loaded")
 	kernel.Register()
+	stakeholders.Register()
 	content.Register()
 	entity.Register()
+
+	stakeholder.Register()
 	return nil
 }
 
 // RegisterBlockDecoders registers the decoder for different types of block
 func (*Plugin) RegisterBlockDecoders(decoder ipld.BlockDecoder) error {
-	decoder.Register(block.CodecISCN, kernel.BlockDecoder)
-	decoder.Register(block.CodecContent, content.BlockDecoder)
-	decoder.Register(block.CodecEntity, entity.BlockDecoder)
+	decoder.Register(block.CodecISCN, block.DecodeBlock)
+	decoder.Register(block.CodecStakeholders, block.DecodeBlock)
+	decoder.Register(block.CodecContent, block.DecodeBlock)
+	decoder.Register(block.CodecEntity, block.DecodeBlock)
 	return nil
 }
 

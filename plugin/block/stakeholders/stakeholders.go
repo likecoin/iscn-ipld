@@ -1,18 +1,19 @@
-package entity
+package stakeholders
 
 import (
 	"github.com/likecoin/iscn-ipld/plugin/block"
+	"github.com/likecoin/iscn-ipld/plugin/block/stakeholder"
 )
 
 const (
-	// SchemaName of entity
-	SchemaName = "entity"
+	// SchemaName of stakeholders
+	SchemaName = "stakeholders"
 )
 
-// Register registers the schema of entity block
+// Register registers the schema of stakeholders block
 func Register() {
 	block.RegisterIscnObjectFactory(
-		block.CodecEntity,
+		block.CodecStakeholders,
 		SchemaName,
 		[]block.CodecFactoryFunc{
 			newSchemaV1,
@@ -24,14 +25,14 @@ func Register() {
 // base
 // ==================================================
 
-// base is the base struct for entity (codec 0x0267)
+// base is the base struct for stakeholders (codec 0x0266)
 type base struct {
 	*block.Base
 }
 
 func newBase(version uint64, schema []block.Data) (*base, error) {
 	blockBase, err := block.NewBase(
-		block.CodecEntity,
+		block.CodecStakeholders,
 		SchemaName,
 		version,
 		schema,
@@ -49,7 +50,7 @@ func newBase(version uint64, schema []block.Data) (*base, error) {
 // schemaV1
 // ==================================================
 
-// schemaV1 represents an entity V1
+// schemaV1 represents an stakeholders V1
 type schemaV1 struct {
 	*base
 }
@@ -57,18 +58,18 @@ type schemaV1 struct {
 var _ block.IscnObject = (*schemaV1)(nil)
 
 func newSchemaV1() (block.Codec, error) {
+	prototype := block.NewObject("_", true, stakeholder.SchemaV1Prototype)
+
 	schema := []block.Data{
-		block.NewString("id", true), // TODO llc://id
-		block.NewString("name", false),
-		block.NewString("description", false),
+		block.NewDataArray("stakeholders", true, prototype),
 	}
 
-	entityBase, err := newBase(1, schema)
+	stakeholdersBase, err := newBase(1, schema)
 	if err != nil {
 		return nil, err
 	}
 
 	return &schemaV1{
-		base: entityBase,
+		base: stakeholdersBase,
 	}, nil
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"gitlab.com/c0b/go-ordered-json"
 
+	blocks "github.com/ipfs/go-block-format"
 	cbor "github.com/ipfs/go-ipld-cbor"
 	node "github.com/ipfs/go-ipld-format"
 	mh "github.com/multiformats/go-multihash"
@@ -32,6 +33,7 @@ type IscnObject interface {
 	GetUint64(string) (uint64, error)
 	GetString(string) (string, error)
 	GetCid(string) (cid.Cid, error)
+	GetLink(string) (cid.Cid, string, error)
 
 	MarshalJSON() ([]byte, error)
 }
@@ -44,9 +46,12 @@ type IscnObject interface {
 type Codec interface {
 	IscnObject
 
+	MarkNested()
+
+	GetData() map[string]interface{}
 	SetData(map[string]interface{}) error
 
-	Encode() error
+	Encode() (map[string]interface{}, error)
 	Decode(map[string]interface{}) error
 }
 
@@ -72,7 +77,7 @@ func Encode(
 ) (IscnObject, error) {
 	schemas, ok := factory[codec]
 	if !ok {
-		return nil, fmt.Errorf("\"%s\" is not registered", schemaNames[codec])
+		return nil, fmt.Errorf("%q is not registered", schemaNames[codec])
 	}
 
 	if version > (uint64)(len(schemas)) {
@@ -89,16 +94,20 @@ func Encode(
 		return nil, err
 	}
 
-	if err := obj.Encode(); err != nil {
+	if _, err := obj.Encode(); err != nil {
 		return nil, err
 	}
 
 	return obj, nil
 }
 
-// Decode decodes the raw IPLD data back to data object and
-// the CID is used for verify whether the object is consist
-func Decode(rawData []byte, c cid.Cid) (node.Node, error) {
+// DecodeBlock decodes the raw IPLD data back to data object
+func DecodeBlock(block blocks.Block) (node.Node, error) {
+	return Decode(block.RawData(), block.Cid())
+}
+
+// Decode decodes the raw IPLD data back to data object
+func Decode(rawData []byte, c cid.Cid) (IscnObject, error) {
 	data := map[string]interface{}{}
 	if err := cbor.DecodeInto(rawData, &data); err != nil {
 		return nil, err
@@ -116,7 +125,7 @@ func Decode(rawData []byte, c cid.Cid) (node.Node, error) {
 
 	schemas, ok := factory[c.Type()]
 	if !ok {
-		return nil, fmt.Errorf("\"%s\" is not registered", schemaNames[c.Type()])
+		return nil, fmt.Errorf("%q is not registered", schemaNames[c.Type()])
 	}
 
 	if version > (uint64)(len(schemas)) {
@@ -134,7 +143,7 @@ func Decode(rawData []byte, c cid.Cid) (node.Node, error) {
 	}
 
 	// Encode one more time to retrieve CID
-	if err := obj.Encode(); err != nil {
+	if _, err := obj.Encode(); err != nil {
 		return nil, err
 	}
 
@@ -150,7 +159,7 @@ func Decode(rawData []byte, c cid.Cid) (node.Node, error) {
 			return nil, fmt.Errorf("Cannot retrieve expected CID")
 		}
 
-		return nil, fmt.Errorf("Cid \"%s\" is not matched: expected \"%s\"", current, expected)
+		return nil, fmt.Errorf("Cid %q is not matched: expected %q", current, expected)
 	}
 
 	return obj, nil
@@ -162,6 +171,8 @@ func Decode(rawData []byte, c cid.Cid) (node.Node, error) {
 
 // Base is the basic block of all kind of ISCN objects
 type Base struct {
+	isNested bool
+
 	codec   uint64
 	name    string
 	version uint64
@@ -180,12 +191,13 @@ var _ Codec = (*Base)(nil)
 func NewBase(codec uint64, name string, version uint64, schema []Data) (*Base, error) {
 	// Create the base
 	b := &Base{
-		codec:   codec,
-		name:    name,
-		version: version,
-		data:    map[string]Data{},
-		keys:    []string{},
-		custom:  map[string]interface{}{},
+		isNested: false,
+		codec:    codec,
+		name:     name,
+		version:  version,
+		data:     map[string]Data{},
+		keys:     []string{},
+		custom:   map[string]interface{}{},
 	}
 
 	// Set "context" data
@@ -227,12 +239,12 @@ func (b *Base) GetCustom() map[string]interface{} {
 func (b *Base) GetArray(key string) ([]interface{}, error) {
 	value, ok := b.obj[key]
 	if !ok {
-		return nil, fmt.Errorf("\"%s\" is not found", key)
+		return nil, fmt.Errorf("%q is not found", key)
 	}
 
 	res, ok := value.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("The value of \"%s\" is not '[]interface{]'", key)
+		return nil, fmt.Errorf("The value of %q is not '[]interface{]'", key)
 	}
 
 	return res, nil
@@ -242,12 +254,12 @@ func (b *Base) GetArray(key string) ([]interface{}, error) {
 func (b *Base) GetBytes(key string) ([]byte, error) {
 	value, ok := b.obj[key]
 	if !ok {
-		return nil, fmt.Errorf("\"%s\" is not found", key)
+		return nil, fmt.Errorf("%q is not found", key)
 	}
 
 	res, ok := value.([]byte)
 	if !ok {
-		return nil, fmt.Errorf("The value of \"%s\" is not '[]byte'", key)
+		return nil, fmt.Errorf("The value of %q is not '[]byte'", key)
 	}
 
 	return res, nil
@@ -257,12 +269,12 @@ func (b *Base) GetBytes(key string) ([]byte, error) {
 func (b *Base) GetInt32(key string) (int32, error) {
 	value, ok := b.obj[key]
 	if !ok {
-		return 0, fmt.Errorf("\"%s\" is not found", key)
+		return 0, fmt.Errorf("%q is not found", key)
 	}
 
 	res, ok := value.(int32)
 	if !ok {
-		return 0, fmt.Errorf("The value of \"%s\" is not 'int32'", key)
+		return 0, fmt.Errorf("The value of %q is not 'int32'", key)
 	}
 
 	return res, nil
@@ -272,12 +284,12 @@ func (b *Base) GetInt32(key string) (int32, error) {
 func (b *Base) GetUint32(key string) (uint32, error) {
 	value, ok := b.obj[key]
 	if !ok {
-		return 0, fmt.Errorf("\"%s\" is not found", key)
+		return 0, fmt.Errorf("%q is not found", key)
 	}
 
 	res, ok := value.(uint32)
 	if !ok {
-		return 0, fmt.Errorf("The value of \"%s\" is not 'uint32'", key)
+		return 0, fmt.Errorf("The value of %q is not 'uint32'", key)
 	}
 
 	return res, nil
@@ -287,12 +299,12 @@ func (b *Base) GetUint32(key string) (uint32, error) {
 func (b *Base) GetInt64(key string) (int64, error) {
 	value, ok := b.obj[key]
 	if !ok {
-		return 0, fmt.Errorf("\"%s\" is not found", key)
+		return 0, fmt.Errorf("%q is not found", key)
 	}
 
 	res, ok := value.(int64)
 	if !ok {
-		return 0, fmt.Errorf("The value of \"%s\" is not 'int64'", key)
+		return 0, fmt.Errorf("The value of %q is not 'int64'", key)
 	}
 
 	return res, nil
@@ -302,12 +314,12 @@ func (b *Base) GetInt64(key string) (int64, error) {
 func (b *Base) GetUint64(key string) (uint64, error) {
 	value, ok := b.obj[key]
 	if !ok {
-		return 0, fmt.Errorf("\"%s\" is not found", key)
+		return 0, fmt.Errorf("%q is not found", key)
 	}
 
 	res, ok := value.(uint64)
 	if !ok {
-		return 0, fmt.Errorf("The value of \"%s\" is not 'uint64'", key)
+		return 0, fmt.Errorf("The value of %q is not 'uint64'", key)
 	}
 
 	return res, nil
@@ -317,12 +329,12 @@ func (b *Base) GetUint64(key string) (uint64, error) {
 func (b *Base) GetString(key string) (string, error) {
 	value, ok := b.obj[key]
 	if !ok {
-		return "", fmt.Errorf("\"%s\" is not found", key)
+		return "", fmt.Errorf("%q is not found", key)
 	}
 
 	res, ok := value.(string)
 	if !ok {
-		return "", fmt.Errorf("The value of \"%s\" is not '[]byte'", key)
+		return "", fmt.Errorf("The value of %q is not '[]byte'", key)
 	}
 
 	return res, nil
@@ -332,15 +344,32 @@ func (b *Base) GetString(key string) (string, error) {
 func (b *Base) GetCid(key string) (cid.Cid, error) {
 	value, ok := b.obj[key]
 	if !ok {
-		return cid.Undef, fmt.Errorf("\"%s\" is not found", key)
+		return cid.Undef, fmt.Errorf("%q is not found", key)
 	}
 
 	res, ok := value.(cid.Cid)
 	if !ok {
-		return cid.Undef, fmt.Errorf("The value of \"%s\" is not 'Cid'", key)
+		return cid.Undef, fmt.Errorf("The value of %q is not 'Cid'", key)
 	}
 
 	return res, nil
+}
+
+// GetLink returns the value of 'key' as link, a link can be a Cid or a URL
+func (b *Base) GetLink(key string) (cid.Cid, string, error) {
+	value, ok := b.obj[key]
+	if !ok {
+		return cid.Undef, "", fmt.Errorf("%q is not found", key)
+	}
+
+	switch v := value.(type) {
+	case cid.Cid:
+		return v, "", nil
+	case string:
+		return cid.Undef, v, nil
+	}
+
+	return cid.Undef, "", fmt.Errorf("The value of %q is not a link", key)
 }
 
 // MarshalJSON convert the block to JSON format
@@ -357,6 +386,9 @@ func (b *Base) MarshalJSON() ([]byte, error) {
 				}
 				continue
 			}
+		} else if b.isNested {
+			// Nested block do not marshal context
+			continue
 		}
 
 		if err := handler.ToJSON(om); err != nil {
@@ -371,10 +403,29 @@ func (b *Base) MarshalJSON() ([]byte, error) {
 	return om.MarshalJSON()
 }
 
+// MarkNested marks the block as a nested block
+func (b *Base) MarkNested() {
+	b.isNested = true
+}
+
+// GetData returns the block data as map[string]interface{}
+func (b *Base) GetData() map[string]interface{} {
+	res := map[string]interface{}{}
+
+	for key, value := range b.obj {
+		res[key] = value
+	}
+
+	for key, value := range b.custom {
+		res[key] = value
+	}
+
+	return res
+}
+
 // SetData sets and validates the data
 func (b *Base) SetData(data map[string]interface{}) error {
-	// Save the data object
-	b.obj = data
+	b.obj = map[string]interface{}{}
 
 	// Set the data
 	for key, handler := range b.data {
@@ -386,7 +437,7 @@ func (b *Base) SetData(data map[string]interface{}) error {
 		d, ok := data[key]
 		if !ok {
 			if handler.IsRequired() {
-				return fmt.Errorf("The property \"%s\" is required", key)
+				return fmt.Errorf("The property %q is required", key)
 			}
 
 			continue
@@ -396,6 +447,9 @@ func (b *Base) SetData(data map[string]interface{}) error {
 		if err != nil {
 			return err
 		}
+
+		// Save the data object
+		b.obj[key] = d
 	}
 
 	// Validate the data
@@ -417,7 +471,7 @@ func (b *Base) SetData(data map[string]interface{}) error {
 }
 
 // Encode the ISCN object to CBOR serialized data
-func (b *Base) Encode() error {
+func (b *Base) Encode() (map[string]interface{}, error) {
 	// Extract all data from data handlers
 	m := map[string]interface{}{}
 	for _, handler := range b.data {
@@ -425,10 +479,14 @@ func (b *Base) Encode() error {
 			_, exist := b.obj[handler.GetKey()]
 			if !exist {
 				if handler.IsRequired() {
-					return fmt.Errorf("Unknown error: key %q should be exist", handler.GetKey())
+					return nil,
+						fmt.Errorf("Unknown error: key %q should be exist", handler.GetKey())
 				}
 				continue
 			}
+		} else if b.isNested {
+			// Nested block do not encode context
+			continue
 		}
 
 		handler.Encode(&m)
@@ -442,7 +500,7 @@ func (b *Base) Encode() error {
 	// CBOR-ise the data
 	rawData, err := cbor.DumpObject(m)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	c, err := cid.V1Builder{
@@ -450,13 +508,13 @@ func (b *Base) Encode() error {
 		MhType: mh.SHA2_256,
 	}.Sum(rawData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	b.cid = &c
 	b.rawData = rawData
 
-	return nil
+	return m, nil
 }
 
 // Decode the data back to ISCN object
@@ -474,7 +532,7 @@ func (b *Base) Decode(data map[string]interface{}) error {
 		d, ok := data[key]
 		if !ok {
 			if handler.IsRequired() {
-				return fmt.Errorf("The property \"%s\" is required", key)
+				return fmt.Errorf("The property %q is required", key)
 			}
 
 			continue
@@ -538,6 +596,9 @@ func (b *Base) Resolve(path []string) (interface{}, []string, error) {
 				}
 				return nil, nil, fmt.Errorf("no such link")
 			}
+		} else if b.isNested {
+			// Nested block do not resolve context
+			return nil, nil, fmt.Errorf("no such link")
 		}
 		return data.Resolve(rest)
 	}

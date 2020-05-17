@@ -9,6 +9,11 @@ const (
 	CodecStakeholders = 0x0266
 	CodecEntity       = 0x0267
 	CodecContent      = 0x0268
+
+	// Internal Codec
+	CodecRight       = 0x02BD
+	CodecStakeholder = 0x02D1
+	CodecTimePeriod  = 0x033F
 )
 
 // IsIscnObject checks the codec whether belongs an ISCN object

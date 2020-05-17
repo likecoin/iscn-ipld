@@ -212,6 +212,97 @@ func (d *DataArray) Resolve(path []string) (interface{}, []string, error) {
 }
 
 // ==================================================
+// Object
+// ==================================================
+
+// ObjectPrototypeFunc returns a factory function to create ISCN object prototype
+type ObjectPrototypeFunc func() Codec
+
+// Object is a data handler of a nested ISCN object
+type Object struct {
+	*DataBase
+
+	prototypeFunc ObjectPrototypeFunc
+	object        Codec
+}
+
+var _ Data = (*Object)(nil)
+
+// NewObject creates a nested ISCN object data handler
+func NewObject(key string, isRequired bool, prototypeFunc ObjectPrototypeFunc) *Object {
+	object := prototypeFunc()
+	object.MarkNested()
+
+	return &Object{
+		DataBase:      NewDataBase(key, isRequired),
+		prototypeFunc: prototypeFunc,
+		object:        object,
+	}
+}
+
+// Prototype creates a prototype Object
+func (d *Object) Prototype() Data {
+	object := d.prototypeFunc()
+	object.MarkNested()
+
+	return &Object{
+		DataBase:      d.DataBase.Prototype(),
+		prototypeFunc: d.prototypeFunc,
+		object:        object,
+	}
+}
+
+// Set the value of Object
+func (d *Object) Set(data interface{}) error {
+	if value, ok := data.(map[string]interface{}); ok {
+		if err := d.object.SetData(value); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("Object: 'map[string]interface{}' is expected but '%T' is found", data)
+}
+
+// Encode Object
+func (d *Object) Encode(m *map[string]interface{}) error {
+	obj, err := d.object.Encode()
+	if err != nil {
+		return err
+	}
+
+	(*m)[d.GetKey()] = obj
+	return nil
+}
+
+// Decode Object
+func (d *Object) Decode(data interface{}, m *map[string]interface{}) error {
+	if value, ok := data.(map[string]interface{}); ok {
+		if err := d.object.Decode(value); err != nil {
+			return err
+		}
+
+		(*m)[d.GetKey()] = d.object
+		return nil
+	}
+
+	return fmt.Errorf("Object: 'map[string]interface{}' is expected but '%T' is found", data)
+}
+
+// ToJSON prepares the data for MarshalJSON
+func (d *Object) ToJSON(om *ordered.OrderedMap) error {
+	// TODO keep order of the JSON
+	om.Set(d.GetKey(), d.object.GetData())
+	return nil
+}
+
+// Resolve resolves the value
+func (d *Object) Resolve(path []string) (interface{}, []string, error) {
+	return d.object.Resolve(path)
+}
+
+// ==================================================
 // Number
 // ==================================================
 
@@ -578,7 +669,8 @@ func (d *Number) Resolve(path []string) (interface{}, []string, error) {
 type String struct {
 	*DataBase
 
-	value string
+	value  string
+	filter *map[string]struct{}
 }
 
 var _ Data = (*String)(nil)
@@ -590,16 +682,41 @@ func NewString(key string, isRequired bool) *String {
 	}
 }
 
+// NewStringWithFilter creates a string data handler with filter
+func NewStringWithFilter(key string, isRequired bool, filter []string) *String {
+	filterPtr := &map[string]struct{}{}
+	for _, value := range filter {
+		(*filterPtr)[value] = struct{}{}
+	}
+
+	return &String{
+		DataBase: NewDataBase(key, isRequired),
+		filter:   filterPtr,
+	}
+}
+
 // Prototype creates a prototype String
 func (d *String) Prototype() Data {
 	return &String{
 		DataBase: d.DataBase.Prototype(),
+		filter:   d.filter,
 	}
+}
+
+// Get returns the string value
+func (d *String) Get() string {
+	return d.value
 }
 
 // Set the value of String
 func (d *String) Set(data interface{}) error {
 	if value, ok := data.(string); ok {
+		if d.filter != nil {
+			if _, ok := (*d.filter)[value]; !ok {
+				return fmt.Errorf("String: %q is not a valid value", value)
+			}
+		}
+
 		d.value = value
 		return nil
 	}
@@ -662,6 +779,14 @@ func NewContext(schema string) *Context {
 	return &Context{
 		Number: NewNumber(ContextKey, true, Uint64T),
 		schema: schema,
+	}
+}
+
+// Prototype creates a prototype Context
+func (d *Context) Prototype() Data {
+	return &Context{
+		Number: NewNumber(d.GetKey(), d.IsRequired(), d.Number.ty),
+		schema: d.schema,
 	}
 }
 
@@ -858,6 +983,11 @@ func NewParent(key string, codec uint64, version *Number) *Parent {
 	}
 }
 
+// Prototype creates a protype Parent
+func (d *Parent) Prototype() Data {
+	panic("Parent do not support prototyping")
+}
+
 // Set the value of parent IPFS CID
 func (d *Parent) Set(data interface{}) error {
 	if data != nil {
@@ -875,7 +1005,7 @@ func (d *Parent) Validate() error {
 
 	if hasParent {
 		if d.Cid.c == nil {
-			return fmt.Errorf("Parent: missing  as version > 1")
+			return fmt.Errorf("Parent: missing as version > 1")
 		}
 	} else {
 		if d.Cid.c != nil {
