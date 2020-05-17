@@ -88,6 +88,7 @@ func newSchemaV1() (block.Codec, error) {
 		block.NewTimestamp("timestamp", true),
 		version,
 		parent,
+		block.NewCid("rights", true, block.CodecRights),
 		block.NewCid("stakeholders", true, block.CodecStakeholders),
 		block.NewCid("content", true, block.CodecContent),
 	}

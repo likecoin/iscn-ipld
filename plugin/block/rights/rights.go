@@ -1,19 +1,19 @@
-package stakeholders
+package rights
 
 import (
 	"github.com/likecoin/iscn-ipld/plugin/block"
-	"github.com/likecoin/iscn-ipld/plugin/block/stakeholder"
+	"github.com/likecoin/iscn-ipld/plugin/block/right"
 )
 
 const (
-	// SchemaName of stakeholders
-	SchemaName = "stakeholders"
+	// SchemaName of rights
+	SchemaName = "rights"
 )
 
-// Register registers the schema of stakeholders block
+// Register registers the schema of rights block
 func Register() {
 	block.RegisterIscnObjectFactory(
-		block.CodecStakeholders,
+		block.CodecRights,
 		SchemaName,
 		[]block.CodecFactoryFunc{
 			newSchemaV1,
@@ -25,14 +25,14 @@ func Register() {
 // base
 // ==================================================
 
-// base is the base struct for stakeholders (codec 0x0266)
+// base is the base struct for rights (codec 0x0265)
 type base struct {
 	*block.Base
 }
 
 func newBase(version uint64, schema []block.Data) (*base, error) {
 	blockBase, err := block.NewBase(
-		block.CodecStakeholders,
+		block.CodecRights,
 		SchemaName,
 		version,
 		schema,
@@ -50,7 +50,7 @@ func newBase(version uint64, schema []block.Data) (*base, error) {
 // schemaV1
 // ==================================================
 
-// schemaV1 represents a stakeholders V1
+// schemaV1 represents a rights V1
 type schemaV1 struct {
 	*base
 }
@@ -58,18 +58,18 @@ type schemaV1 struct {
 var _ block.IscnObject = (*schemaV1)(nil)
 
 func newSchemaV1() (block.Codec, error) {
-	prototype := block.NewObject("_", true, stakeholder.SchemaV1Prototype)
+	prototype := block.NewObject("_", true, right.SchemaV1Prototype)
 
 	schema := []block.Data{
-		block.NewDataArray("stakeholders", true, prototype),
+		block.NewDataArray("rights", true, prototype),
 	}
 
-	stakeholdersBase, err := newBase(1, schema)
+	rightsBase, err := newBase(1, schema)
 	if err != nil {
 		return nil, err
 	}
 
 	return &schemaV1{
-		base: stakeholdersBase,
+		base: rightsBase,
 	}, nil
 }

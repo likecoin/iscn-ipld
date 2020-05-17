@@ -26,6 +26,7 @@ type IscnObject interface {
 	GetCustom() map[string]interface{}
 
 	GetArray(string) ([]interface{}, error)
+	GetObject(string) (interface{}, error)
 	GetBytes(string) ([]byte, error)
 	GetInt32(string) (int32, error)
 	GetUint32(string) (uint32, error)
@@ -253,6 +254,16 @@ func (b *Base) GetArray(key string) ([]interface{}, error) {
 	}
 
 	return res, nil
+}
+
+// GetObject returns the value of 'key' as object
+func (b *Base) GetObject(key string) (interface{}, error) {
+	value, ok := b.obj[key]
+	if !ok {
+		return nil, fmt.Errorf("%q is not found", key)
+	}
+
+	return value, nil
 }
 
 // GetBytes returns the value of 'key' as byte slice

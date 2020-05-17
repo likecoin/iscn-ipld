@@ -9,8 +9,8 @@ const (
 	CodecISCN         = 0x0264
 	CodecRights       = 0x0265
 	CodecStakeholders = 0x0266
-	CodecEntity       = 0x0267
-	CodecContent      = 0x0268
+	CodecContent      = 0x0267
+	CodecEntity       = 0x0268
 
 	// Internal Codec
 	CodecRight       = 0x02BD

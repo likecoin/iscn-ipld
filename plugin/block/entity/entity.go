@@ -24,7 +24,7 @@ func Register() {
 // base
 // ==================================================
 
-// base is the base struct for entity (codec 0x0267)
+// base is the base struct for entity (codec 0x0268)
 type base struct {
 	*block.Base
 }

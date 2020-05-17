@@ -1,19 +1,19 @@
-package stakeholders
+package right
 
 import (
 	"github.com/likecoin/iscn-ipld/plugin/block"
-	"github.com/likecoin/iscn-ipld/plugin/block/stakeholder"
+	"github.com/likecoin/iscn-ipld/plugin/block/time_period"
 )
 
 const (
-	// SchemaName of stakeholders
-	SchemaName = "stakeholders"
+	// SchemaName of right
+	SchemaName = "right"
 )
 
-// Register registers the schema of stakeholders block
+// Register registers the schema of right block
 func Register() {
 	block.RegisterIscnObjectFactory(
-		block.CodecStakeholders,
+		block.CodecRight,
 		SchemaName,
 		[]block.CodecFactoryFunc{
 			newSchemaV1,
@@ -25,14 +25,14 @@ func Register() {
 // base
 // ==================================================
 
-// base is the base struct for stakeholders (codec 0x0266)
+// base is the base struct for right (codec 0x02BD)
 type base struct {
 	*block.Base
 }
 
 func newBase(version uint64, schema []block.Data) (*base, error) {
 	blockBase, err := block.NewBase(
-		block.CodecStakeholders,
+		block.CodecRight,
 		SchemaName,
 		version,
 		schema,
@@ -50,7 +50,7 @@ func newBase(version uint64, schema []block.Data) (*base, error) {
 // schemaV1
 // ==================================================
 
-// schemaV1 represents a stakeholders V1
+// schemaV1 represents a right V1
 type schemaV1 struct {
 	*base
 }
@@ -58,18 +58,26 @@ type schemaV1 struct {
 var _ block.IscnObject = (*schemaV1)(nil)
 
 func newSchemaV1() (block.Codec, error) {
-	prototype := block.NewObject("_", true, stakeholder.SchemaV1Prototype)
-
 	schema := []block.Data{
-		block.NewDataArray("stakeholders", true, prototype),
+		block.NewCid("holder", true, block.CodecEntity),
+		block.NewString("type", true), // TODO use filterd string??
+		block.NewCid("terms", true, 0),
+		block.NewObject("period", false, timeperiod.SchemaV1Prototype),
+		block.NewString("territory", false),
 	}
 
-	stakeholdersBase, err := newBase(1, schema)
+	timePeriodBase, err := newBase(1, schema)
 	if err != nil {
 		return nil, err
 	}
 
 	return &schemaV1{
-		base: stakeholdersBase,
+		base: timePeriodBase,
 	}, nil
+}
+
+// SchemaV1Prototype creates a prototype for schemaV1
+func SchemaV1Prototype() block.Codec {
+	res, _ := newSchemaV1()
+	return res
 }

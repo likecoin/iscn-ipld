@@ -51,7 +51,7 @@ func newBase(version uint64, schema []block.Data) (*base, error) {
 // schemaV1
 // ==================================================
 
-// schemaV1 represents an stakeholder V1
+// schemaV1 represents a stakeholder V1
 type schemaV1 struct {
 	*base
 

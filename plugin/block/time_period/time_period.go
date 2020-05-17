@@ -1,18 +1,20 @@
-package content
+package timeperiod
 
 import (
+	"fmt"
+
 	"github.com/likecoin/iscn-ipld/plugin/block"
 )
 
 const (
-	// SchemaName of content
-	SchemaName = "content"
+	// SchemaName of time period
+	SchemaName = "timeperiod"
 )
 
-// Register registers the schema of content block
+// Register registers the schema of time period block
 func Register() {
 	block.RegisterIscnObjectFactory(
-		block.CodecContent,
+		block.CodecTimePeriod,
 		SchemaName,
 		[]block.CodecFactoryFunc{
 			newSchemaV1,
@@ -24,14 +26,14 @@ func Register() {
 // base
 // ==================================================
 
-// base is the base struct for content (codec 0x0267)
+// base is the base struct for time period (codec 0x033F)
 type base struct {
 	*block.Base
 }
 
 func newBase(version uint64, schema []block.Data) (*base, error) {
 	blockBase, err := block.NewBase(
-		block.CodecContent,
+		block.CodecTimePeriod,
 		SchemaName,
 		version,
 		schema,
@@ -49,48 +51,51 @@ func newBase(version uint64, schema []block.Data) (*base, error) {
 // schemaV1
 // ==================================================
 
-// schemaV1 represents a content V1
+// schemaV1 represents a time period V1
 type schemaV1 struct {
 	*base
 
-	version *block.Number
-	parent  *block.Cid
+	from *block.Timestamp
+	to   *block.Timestamp
 }
 
 var _ block.IscnObject = (*schemaV1)(nil)
 
 func newSchemaV1() (block.Codec, error) {
-	version := block.NewNumber("version", true, block.Uint64T)
-	parent := block.NewCid("parent", false, block.CodecContent)
+	from := block.NewTimestamp("from", false)
+	to := block.NewTimestamp("to", false)
 
 	schema := []block.Data{
-		block.NewString("type", true),
-		version,
-		parent,
-		block.NewString("source", false), // TODO URL
-		block.NewString("edition", false),
-		block.NewString("fingerprint", true), // TODO HashURL
-		block.NewString("title", true),
-		block.NewString("description", false),
-		block.NewDataArray("tags", false, block.NewString("_", false)),
+		from,
+		to,
 	}
 
-	contentBase, err := newBase(1, schema)
+	timePeriodBase, err := newBase(1, schema)
 	if err != nil {
 		return nil, err
 	}
 
 	obj := schemaV1{
-		base:    contentBase,
-		version: version,
-		parent:  parent,
+		base: timePeriodBase,
+		from: from,
+		to:   to,
 	}
-	contentBase.SetValidator(obj.Validate)
+	timePeriodBase.SetValidator(obj.Validate)
 
 	return &obj, nil
 }
 
+// SchemaV1Prototype creates a prototype for schemaV1
+func SchemaV1Prototype() block.Codec {
+	res, _ := newSchemaV1()
+	return res
+}
+
 // Validate the data
 func (o *schemaV1) Validate() error {
-	return block.ValidateParent(o.version, o.parent)
+	if !o.from.IsDefined() && !o.to.IsDefined() {
+		return fmt.Errorf("At least \"from\" or \"to\" exists")
+	}
+
+	return nil
 }

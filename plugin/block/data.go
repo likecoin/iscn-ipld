@@ -70,6 +70,7 @@ func (b *DataBase) IsRequired() bool {
 	return b.isRequired
 }
 
+// IsDefined checks whether the data is well defined
 func (b *DataBase) IsDefined() bool {
 	return b.isDefinded
 }
@@ -79,11 +80,13 @@ func (b *DataBase) GetKey() string {
 	return b.key
 }
 
+// Set the value of data
 func (b *DataBase) Set(interface{}) error {
 	b.isDefinded = true
 	return nil
 }
 
+// Decode the data
 func (b *DataBase) Decode(interface{}, *map[string]interface{}) error {
 	b.isDefinded = true
 	return nil
@@ -896,7 +899,7 @@ func (d *Cid) Link() (*node.Link, error) {
 // Set the value of IPFS CID
 func (d *Cid) Set(data interface{}) error {
 	if c, ok := data.(cid.Cid); ok {
-		if c.Type() != d.codec {
+		if d.codec != 0 && c.Type() != d.codec {
 			return fmt.Errorf(
 				"Cid: Codec '0x%x' is expected but '0x%x' is found",
 				d.codec,
@@ -931,7 +934,7 @@ func (d *Cid) Decode(data interface{}, m *map[string]interface{}) error {
 		return err
 	}
 
-	if value.Type() != d.codec {
+	if d.codec != 0 && value.Type() != d.codec {
 		return fmt.Errorf(
 			"Cid: Codec '0x%x' is expected but '0x%x' is found",
 			d.codec,
