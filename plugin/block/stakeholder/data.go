@@ -59,23 +59,23 @@ func (d *Type) Prototype() block.Data {
 type Footprint struct {
 	*block.DataBase
 
-	ty      *Type
 	handler block.Data
 }
 
 var _ block.Data = (*Footprint)(nil)
 
 // NewFootprint creates a footprint data handler
-func NewFootprint(ty *Type) *Footprint {
+func NewFootprint() *Footprint {
 	return &Footprint{
 		DataBase: block.NewDataBase("footprint", false),
-		ty:       ty,
 	}
 }
 
 // Prototype creates a protype Footprint
 func (d *Footprint) Prototype() block.Data {
-	panic("Footprint do not support prototyping")
+	return &Footprint{
+		DataBase: d.DataBase.Prototype(),
+	}
 }
 
 // Set the value of link of footprint
@@ -94,32 +94,16 @@ func (d *Footprint) Set(data interface{}) error {
 		return fmt.Errorf("Footprint: link is expected but '%T' is found", data)
 	}
 
-	return d.handler.Set(data)
-}
-
-// Validate the data
-func (d *Footprint) Validate() error {
-	if d.isFootprint() {
-		if d.handler == nil {
-			return fmt.Errorf("Footprint: missing footprint")
-		}
-	} else {
-		if d.handler != nil {
-			return fmt.Errorf("Footprint: should not be set as " +
-				"this is not a footprint stakeholder")
-		}
+	if err := d.handler.Set(data); err != nil {
+		return err
 	}
 
-	return nil
+	return d.DataBase.Set(data)
 }
 
 // Encode Footprint
 func (d *Footprint) Encode(m *map[string]interface{}) error {
-	if d.isFootprint() {
-		return d.handler.Encode(m)
-	}
-
-	return nil
+	return d.handler.Encode(m)
 }
 
 // Decode Footprint
@@ -138,27 +122,19 @@ func (d *Footprint) Decode(data interface{}, m *map[string]interface{}) error {
 		return fmt.Errorf("Footprint: link is expected but '%T' is found", data)
 	}
 
-	return d.handler.Decode(data, m)
+	if err := d.handler.Decode(data, m); err != nil {
+		return err
+	}
+
+	return d.DataBase.Decode(data, m)
 }
 
 // ToJSON prepares the data for MarshalJSON
 func (d *Footprint) ToJSON(om *ordered.OrderedMap) error {
-	if d.isFootprint() {
-		return d.handler.ToJSON(om)
-	}
-
-	return nil
+	return d.handler.ToJSON(om)
 }
 
 // Resolve resolves the link
 func (d *Footprint) Resolve(path []string) (interface{}, []string, error) {
-	if d.isFootprint() {
-		return d.handler.Resolve(path)
-	}
-
-	return nil, nil, fmt.Errorf("no such link")
-}
-
-func (d *Footprint) isFootprint() bool {
-	return d.ty.Get() == footprint
+	return d.handler.Resolve(path)
 }

@@ -71,6 +71,9 @@ func (b *base) String() string {
 // schemaV1 represents an ISCN kernel V1
 type schemaV1 struct {
 	*base
+
+	version *block.Number
+	parent  *block.Cid
 }
 
 var _ block.IscnObject = (*schemaV1)(nil)
@@ -78,11 +81,13 @@ var _ block.IscnObject = (*schemaV1)(nil)
 func newSchemaV1() (block.Codec, error) {
 	id := NewID()
 	version := block.NewNumber("version", true, block.Uint64T)
+	parent := block.NewCid("parent", false, block.CodecISCN)
+
 	schema := []block.Data{
 		id,
 		block.NewTimestamp("timestamp", true),
 		version,
-		block.NewParent("parent", block.CodecISCN, version),
+		parent,
 		block.NewCid("stakeholders", true, block.CodecStakeholders),
 		block.NewCid("content", true, block.CodecContent),
 	}
@@ -92,7 +97,17 @@ func newSchemaV1() (block.Codec, error) {
 		return nil, err
 	}
 
-	return &schemaV1{
-		base: iscnKernelBase,
-	}, nil
+	obj := schemaV1{
+		base:    iscnKernelBase,
+		version: version,
+		parent:  parent,
+	}
+	iscnKernelBase.SetValidator(obj.Validate)
+
+	return &obj, nil
+}
+
+// Validate the data
+func (o *schemaV1) Validate() error {
+	return block.ValidateParent(o.version, o.parent)
 }

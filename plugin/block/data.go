@@ -24,11 +24,10 @@ type Data interface {
 	Prototype() Data
 
 	IsRequired() bool
+	IsDefined() bool
 
 	Set(interface{}) error
 	GetKey() string
-
-	Validate() error
 
 	Encode(*map[string]interface{}) error
 	Decode(interface{}, *map[string]interface{}) error
@@ -44,6 +43,7 @@ type Data interface {
 // DataBase is the base struct for handling data property
 type DataBase struct {
 	isRequired bool
+	isDefinded bool
 
 	key string
 }
@@ -52,6 +52,7 @@ type DataBase struct {
 func NewDataBase(key string, isRequired bool) *DataBase {
 	return &DataBase{
 		isRequired: isRequired,
+		isDefinded: false,
 		key:        key,
 	}
 }
@@ -69,13 +70,22 @@ func (b *DataBase) IsRequired() bool {
 	return b.isRequired
 }
 
+func (b *DataBase) IsDefined() bool {
+	return b.isDefinded
+}
+
 // GetKey returns the key of the data property
 func (b *DataBase) GetKey() string {
 	return b.key
 }
 
-// Validate the data
-func (b *DataBase) Validate() error {
+func (b *DataBase) Set(interface{}) error {
+	b.isDefinded = true
+	return nil
+}
+
+func (b *DataBase) Decode(interface{}, *map[string]interface{}) error {
+	b.isDefinded = true
 	return nil
 }
 
@@ -124,7 +134,7 @@ func (d *DataArray) Set(data interface{}) error {
 			d.array = append(d.array, elem)
 		}
 
-		return nil
+		return d.DataBase.Set(data)
 	}
 
 	return fmt.Errorf("DataArray: an array is expected but '%T' is found", data)
@@ -163,7 +173,7 @@ func (d *DataArray) Decode(data interface{}, m *map[string]interface{}) error {
 		}
 
 		(*m)[d.GetKey()] = res
-		return nil
+		return d.DataBase.Decode(data, m)
 	}
 
 	return fmt.Errorf("DataArray: an array is expected but '%T' is found", data)
@@ -259,7 +269,7 @@ func (d *Object) Set(data interface{}) error {
 			return err
 		}
 
-		return nil
+		return d.DataBase.Set(data)
 	}
 
 	return fmt.Errorf("Object: 'map[string]interface{}' is expected but '%T' is found", data)
@@ -284,7 +294,7 @@ func (d *Object) Decode(data interface{}, m *map[string]interface{}) error {
 		}
 
 		(*m)[d.GetKey()] = d.object
-		return nil
+		return d.DataBase.Decode(data, m)
 	}
 
 	return fmt.Errorf("Object: 'map[string]interface{}' is expected but '%T' is found", data)
@@ -571,7 +581,7 @@ func (d *Number) Set(data interface{}) error {
 		d.u64 = value
 	}
 
-	return nil
+	return d.DataBase.Set(data)
 }
 
 // Encode Number
@@ -619,11 +629,12 @@ func (d *Number) Decode(data interface{}, m *map[string]interface{}) error {
 		}
 	}
 
-	if err == nil {
-		d.number = number
+	if err != nil {
+		return err
 	}
 
-	return err
+	d.number = number
+	return d.DataBase.Decode(data, m)
 }
 
 // ToJSON prepares the data for MarshalJSON
@@ -718,7 +729,7 @@ func (d *String) Set(data interface{}) error {
 		}
 
 		d.value = value
-		return nil
+		return d.DataBase.Set(data)
 	}
 
 	return fmt.Errorf("String: 'string' is expected but '%T' is found", data)
@@ -737,7 +748,7 @@ func (d *String) Decode(data interface{}, m *map[string]interface{}) error {
 	}
 
 	(*m)[d.GetKey()] = d.value
-	return nil
+	return d.DataBase.Decode(data, m)
 }
 
 // ToJSON prepares the data for MarshalJSON
@@ -803,7 +814,7 @@ func (d *Context) Set(data interface{}) error {
 	}
 
 	d.version = version
-	return nil
+	return d.DataBase.Set(data)
 }
 
 // Encode Context
@@ -819,7 +830,7 @@ func (d *Context) Decode(data interface{}, m *map[string]interface{}) error {
 	}
 
 	(*m)[d.GetKey()] = d.version
-	return nil
+	return d.DataBase.Decode(data, m)
 }
 
 // ToJSON prepares the data for MarshalJSON
@@ -893,7 +904,7 @@ func (d *Cid) Set(data interface{}) error {
 		}
 
 		d.c = c.Bytes()
-		return nil
+		return d.DataBase.Set(data)
 	}
 
 	return fmt.Errorf("Cid: 'cid.Cid' is expected but '%T' is found", data)
@@ -929,7 +940,7 @@ func (d *Cid) Decode(data interface{}, m *map[string]interface{}) error {
 
 	d.c = c
 	(*m)[d.GetKey()] = value
-	return nil
+	return d.DataBase.Decode(data, m)
 }
 
 // ToJSON prepares the data for MarshalJSON
@@ -960,126 +971,6 @@ func (d *Cid) Resolve(path []string) (interface{}, []string, error) {
 	}
 
 	return link, path, nil
-}
-
-// ==================================================
-// Parent
-// ==================================================
-
-// Parent is a data handler for IPFS CID which links to previous version
-type Parent struct {
-	*Cid
-
-	version *Number
-}
-
-var _ Data = (*Parent)(nil)
-
-// NewParent creates a parent IPFS CID data handler
-func NewParent(key string, codec uint64, version *Number) *Parent {
-	return &Parent{
-		Cid:     NewCid(key, false, codec),
-		version: version,
-	}
-}
-
-// Prototype creates a protype Parent
-func (d *Parent) Prototype() Data {
-	panic("Parent do not support prototyping")
-}
-
-// Set the value of parent IPFS CID
-func (d *Parent) Set(data interface{}) error {
-	if data != nil {
-		return d.Cid.Set(data)
-	}
-	return nil
-}
-
-// Validate the data
-func (d *Parent) Validate() error {
-	hasParent, err := d.hasParent()
-	if err != nil {
-		return err
-	}
-
-	if hasParent {
-		if d.Cid.c == nil {
-			return fmt.Errorf("Parent: missing as version > 1")
-		}
-	} else {
-		if d.Cid.c != nil {
-			return fmt.Errorf("Parent: should not be set as version <= 1")
-		}
-	}
-
-	return nil
-}
-
-// Encode Parent
-func (d *Parent) Encode(m *map[string]interface{}) error {
-	hasParent, err := d.hasParent()
-	if err != nil {
-		return err
-	}
-
-	if hasParent {
-		return d.Cid.Encode(m)
-	}
-
-	return nil
-}
-
-// Decode Parent
-func (d *Parent) Decode(data interface{}, m *map[string]interface{}) error {
-	return d.Cid.Decode(data, m)
-}
-
-// ToJSON prepares the data for MarshalJSON
-func (d *Parent) ToJSON(om *ordered.OrderedMap) error {
-	hasParent, err := d.hasParent()
-	if err != nil {
-		return err
-	}
-
-	if hasParent {
-		return d.Cid.ToJSON(om)
-	}
-
-	return nil
-}
-
-// Resolve resolves the link
-func (d *Parent) Resolve(path []string) (interface{}, []string, error) {
-	hasParent, err := d.hasParent()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if hasParent {
-		return d.Cid.Resolve(path)
-	}
-
-	return nil, nil, fmt.Errorf("no such link")
-}
-
-func (d *Parent) hasParent() (bool, error) {
-	switch d.version.GetType() {
-	case Int32T:
-		value, _ := d.version.GetInt32()
-		return value > 1, nil
-	case Uint32T:
-		value, _ := d.version.GetUint32()
-		return value > 1, nil
-	case Int64T:
-		value, _ := d.version.GetInt64()
-		return value > 1, nil
-	case Uint64T:
-		value, _ := d.version.GetUint64()
-		return value > 1, nil
-	}
-
-	return false, fmt.Errorf("Parent: cannot retrieve version information")
 }
 
 // ==================================================
@@ -1134,7 +1025,7 @@ func (d *Timestamp) Set(data interface{}) error {
 		}
 
 		d.ts = ts
-		return nil
+		return d.DataBase.Set(data)
 	}
 
 	return fmt.Errorf("Timestamp: 'string' is expected but '%T' is found", data)
@@ -1168,7 +1059,7 @@ func (d *Timestamp) Decode(data interface{}, m *map[string]interface{}) error {
 
 	d.ts = ts
 	(*m)[d.GetKey()] = ts
-	return nil
+	return d.DataBase.Decode(data, m)
 }
 
 // ToJSON prepares the data for MarshalJSON

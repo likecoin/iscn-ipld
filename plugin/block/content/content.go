@@ -52,16 +52,21 @@ func newBase(version uint64, schema []block.Data) (*base, error) {
 // schemaV1 represents an content V1
 type schemaV1 struct {
 	*base
+
+	version *block.Number
+	parent  *block.Cid
 }
 
 var _ block.IscnObject = (*schemaV1)(nil)
 
 func newSchemaV1() (block.Codec, error) {
 	version := block.NewNumber("version", true, block.Uint64T)
+	parent := block.NewCid("parent", false, block.CodecContent)
+
 	schema := []block.Data{
 		block.NewString("type", true),
 		version,
-		block.NewParent("parent", block.CodecContent, version),
+		parent,
 		block.NewString("source", false), // TODO URL
 		block.NewString("edition", false),
 		block.NewString("fingerprint", true), // TODO HashURL
@@ -75,7 +80,17 @@ func newSchemaV1() (block.Codec, error) {
 		return nil, err
 	}
 
-	return &schemaV1{
-		base: contentBase,
-	}, nil
+	obj := schemaV1{
+		base:    contentBase,
+		version: version,
+		parent:  parent,
+	}
+	contentBase.SetValidator(obj.Validate)
+
+	return &obj, nil
+}
+
+// Validate the data
+func (o *schemaV1) Validate() error {
+	return block.ValidateParent(o.version, o.parent)
 }

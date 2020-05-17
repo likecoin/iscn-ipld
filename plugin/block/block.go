@@ -39,7 +39,7 @@ type IscnObject interface {
 }
 
 // ==================================================
-// CoDec
+// Codec
 // ==================================================
 
 // Codec is the interface for the CODEC of ISCN object
@@ -62,6 +62,9 @@ type codecFactory map[uint64][]CodecFactoryFunc
 
 var factory codecFactory = codecFactory{}
 var schemaNames map[uint64]string = map[uint64]string{}
+
+// Validator is a validate function for post validation after set data in block
+type Validator func() error
 
 // RegisterIscnObjectFactory registers an array of ISCN object factory functions
 func RegisterIscnObjectFactory(codec uint64, schemaName string, factories []CodecFactoryFunc) {
@@ -173,13 +176,14 @@ func Decode(rawData []byte, c cid.Cid) (IscnObject, error) {
 type Base struct {
 	isNested bool
 
-	codec   uint64
-	name    string
-	version uint64
-	obj     map[string]interface{}
-	data    map[string]Data
-	keys    []string
-	custom  map[string]interface{}
+	codec     uint64
+	name      string
+	version   uint64
+	obj       map[string]interface{}
+	data      map[string]Data
+	keys      []string
+	custom    map[string]interface{}
+	validator Validator
 
 	cid     *cid.Cid
 	rawData []byte
@@ -191,13 +195,14 @@ var _ Codec = (*Base)(nil)
 func NewBase(codec uint64, name string, version uint64, schema []Data) (*Base, error) {
 	// Create the base
 	b := &Base{
-		isNested: false,
-		codec:    codec,
-		name:     name,
-		version:  version,
-		data:     map[string]Data{},
-		keys:     []string{},
-		custom:   map[string]interface{}{},
+		isNested:  false,
+		codec:     codec,
+		name:      name,
+		version:   version,
+		data:      map[string]Data{},
+		keys:      []string{},
+		custom:    map[string]interface{}{},
+		validator: nil,
 	}
 
 	// Set "context" data
@@ -372,6 +377,11 @@ func (b *Base) GetLink(key string) (cid.Cid, string, error) {
 	return cid.Undef, "", fmt.Errorf("The value of %q is not a link", key)
 }
 
+// SetValidator sets the validator function
+func (b *Base) SetValidator(validator Validator) {
+	b.validator = validator
+}
+
 // MarshalJSON convert the block to JSON format
 func (b *Base) MarshalJSON() ([]byte, error) {
 	om := ordered.NewOrderedMap()
@@ -435,7 +445,7 @@ func (b *Base) SetData(data map[string]interface{}) error {
 		}
 
 		d, ok := data[key]
-		if !ok {
+		if !ok || d == nil {
 			if handler.IsRequired() {
 				return fmt.Errorf("The property %q is required", key)
 			}
@@ -453,8 +463,8 @@ func (b *Base) SetData(data map[string]interface{}) error {
 	}
 
 	// Validate the data
-	for _, handler := range b.data {
-		if err := handler.Validate(); err != nil {
+	if b.validator != nil {
+		if err := b.validator(); err != nil {
 			return err
 		}
 	}
@@ -530,7 +540,7 @@ func (b *Base) Decode(data map[string]interface{}) error {
 		}
 
 		d, ok := data[key]
-		if !ok {
+		if !ok || d == nil {
 			if handler.IsRequired() {
 				return fmt.Errorf("The property %q is required", key)
 			}
@@ -543,6 +553,13 @@ func (b *Base) Decode(data map[string]interface{}) error {
 		}
 
 		delete(data, key)
+	}
+
+	// Validate the data
+	if b.validator != nil {
+		if err := b.validator(); err != nil {
+			return err
+		}
 	}
 
 	// Save the custom data

@@ -48,7 +48,7 @@ func (d *ID) Set(data interface{}) error {
 		}
 
 		d.id = id
-		return nil
+		return d.DataBase.Set(data)
 	}
 
 	return fmt.Errorf("ID: '[]byte' is expected but '%T' is found", data)
@@ -67,7 +67,7 @@ func (d *ID) Decode(data interface{}, m *map[string]interface{}) error {
 	}
 
 	(*m)[d.GetKey()] = d.id
-	return nil
+	return d.DataBase.Decode(data, m)
 }
 
 // ToJSON prepares the data for MarshalJSON

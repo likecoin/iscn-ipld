@@ -1,6 +1,8 @@
 package stakeholder
 
 import (
+	"fmt"
+
 	"github.com/likecoin/iscn-ipld/plugin/block"
 )
 
@@ -52,18 +54,22 @@ func newBase(version uint64, schema []block.Data) (*base, error) {
 // schemaV1 represents an stakeholder V1
 type schemaV1 struct {
 	*base
+
+	ty        *Type
+	footprint *Footprint
 }
 
 var _ block.IscnObject = (*schemaV1)(nil)
 
 func newSchemaV1() (block.Codec, error) {
 	ty := NewType()
+	footprint := NewFootprint()
 
 	schema := []block.Data{
 		ty,
 		block.NewCid("stakeholder", true, block.CodecEntity),
 		block.NewNumber("sharing", true, block.Uint32T),
-		NewFootprint(ty),
+		footprint,
 	}
 
 	stakeholderBase, err := newBase(1, schema)
@@ -71,13 +77,33 @@ func newSchemaV1() (block.Codec, error) {
 		return nil, err
 	}
 
-	return &schemaV1{
-		base: stakeholderBase,
-	}, nil
+	obj := schemaV1{
+		base:      stakeholderBase,
+		ty:        ty,
+		footprint: footprint,
+	}
+	stakeholderBase.SetValidator(obj.Validate)
+
+	return &obj, nil
 }
 
 // SchemaV1Prototype creates a prototype for schemaV1
 func SchemaV1Prototype() block.Codec {
 	res, _ := newSchemaV1()
 	return res
+}
+
+// Validate the data
+func (o *schemaV1) Validate() error {
+	if o.ty.Get() == footprint {
+		if !o.footprint.IsDefined() {
+			return fmt.Errorf("Footprint is missed")
+		}
+	} else {
+		if o.footprint.IsDefined() {
+			return fmt.Errorf("Footprint should not be set as this is not a footprint stakeholder")
+		}
+	}
+
+	return nil
 }
